@@ -17,7 +17,10 @@ export const CodeWithAiNav: NavSection[] = [
       {
         href: "/code-with-ai/platforms/cli",
         children: "CLI",
-        subLinks: [{ href: "/code-with-ai/platforms/cli-reference", children: "Command Reference" }],
+        subLinks: [
+          { href: "/code-with-ai/platforms/cli-reference", children: "Command Reference" },
+          { href: "/code-with-ai/platforms/multi-account", children: "Multiple Accounts" },
+        ],
       },
       {
         href: "/code-with-ai/platforms/kilo-connect",
