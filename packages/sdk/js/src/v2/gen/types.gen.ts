@@ -251,6 +251,28 @@ export type ApiAuth = {
   metadata?: {
     [key: string]: string
   }
+  accounts?: Array<{
+    id: string
+    label: string
+    key: string
+    metadata?: {
+      [key: string]: string
+    }
+    enabled?: boolean
+    status?: "ok" | "invalid" | "cooling"
+    createdAt?: number
+    lastUsedAt?: number
+    cooldownUntil?: number
+    usage?: {
+      input: number
+      output: number
+      cost: number
+      turns: number
+      updatedAt: number
+    }
+  }>
+  active?: string
+  strategy?: "manual" | "failover" | "roundRobin"
 }
 
 export type WellKnownAuth = {
@@ -14201,6 +14223,355 @@ export type ProviderOauthAuthorizeResponses = {
 }
 
 export type ProviderOauthAuthorizeResponse = ProviderOauthAuthorizeResponses[keyof ProviderOauthAuthorizeResponses]
+
+export type ProviderAccountsListData = {
+  body?: never
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/accounts"
+}
+
+export type ProviderAccountsListErrors = {
+  /**
+   * ProviderAuthError | InvalidRequestError
+   */
+  400: ProviderAuthError1 | InvalidRequestError
+}
+
+export type ProviderAccountsListError = ProviderAccountsListErrors[keyof ProviderAccountsListErrors]
+
+export type ProviderAccountsListResponses = {
+  /**
+   * Accounts of an API-key provider, keys masked
+   */
+  200: {
+    providerID: string
+    accounts: Array<{
+      id: string
+      label: string
+      maskedKey: string
+      enabled: boolean
+      status?: "ok" | "invalid" | "cooling"
+      createdAt?: number
+      lastUsedAt?: number
+      cooldownUntil?: number
+      usage?: {
+        input: number
+        output: number
+        cost: number
+        turns: number
+        updatedAt: number
+      }
+    }>
+    active?: string
+    strategy: "manual" | "failover" | "roundRobin"
+  }
+}
+
+export type ProviderAccountsListResponse = ProviderAccountsListResponses[keyof ProviderAccountsListResponses]
+
+export type ProviderAccountsSetData = {
+  body?: {
+    accounts: Array<{
+      id?: string
+      label?: string
+      key?: string
+      metadata?: {
+        [key: string]: string
+      }
+      enabled?: boolean
+    }>
+    active?: string
+    strategy?: "manual" | "failover" | "roundRobin"
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/accounts"
+}
+
+export type ProviderAccountsSetErrors = {
+  /**
+   * ProviderAuthError | InvalidRequestError
+   */
+  400: ProviderAuthError1 | InvalidRequestError
+}
+
+export type ProviderAccountsSetError = ProviderAccountsSetErrors[keyof ProviderAccountsSetErrors]
+
+export type ProviderAccountsSetResponses = {
+  /**
+   * Updated accounts of an API-key provider, keys masked
+   */
+  200: {
+    providerID: string
+    accounts: Array<{
+      id: string
+      label: string
+      maskedKey: string
+      enabled: boolean
+      status?: "ok" | "invalid" | "cooling"
+      createdAt?: number
+      lastUsedAt?: number
+      cooldownUntil?: number
+      usage?: {
+        input: number
+        output: number
+        cost: number
+        turns: number
+        updatedAt: number
+      }
+    }>
+    active?: string
+    strategy: "manual" | "failover" | "roundRobin"
+  }
+}
+
+export type ProviderAccountsSetResponse = ProviderAccountsSetResponses[keyof ProviderAccountsSetResponses]
+
+export type ProviderAccountsRemoveData = {
+  body?: never
+  path: {
+    providerID: string
+    accountID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/accounts/{accountID}"
+}
+
+export type ProviderAccountsRemoveErrors = {
+  /**
+   * ProviderAuthError | InvalidRequestError
+   */
+  400: ProviderAuthError1 | InvalidRequestError
+}
+
+export type ProviderAccountsRemoveError = ProviderAccountsRemoveErrors[keyof ProviderAccountsRemoveErrors]
+
+export type ProviderAccountsRemoveResponses = {
+  /**
+   * Remaining accounts, keys masked
+   */
+  200: {
+    providerID: string
+    accounts: Array<{
+      id: string
+      label: string
+      maskedKey: string
+      enabled: boolean
+      status?: "ok" | "invalid" | "cooling"
+      createdAt?: number
+      lastUsedAt?: number
+      cooldownUntil?: number
+      usage?: {
+        input: number
+        output: number
+        cost: number
+        turns: number
+        updatedAt: number
+      }
+    }>
+    active?: string
+    strategy: "manual" | "failover" | "roundRobin"
+  }
+}
+
+export type ProviderAccountsRemoveResponse = ProviderAccountsRemoveResponses[keyof ProviderAccountsRemoveResponses]
+
+export type ProviderAccountsActivateData = {
+  body?: never
+  path: {
+    providerID: string
+    accountID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/accounts/{accountID}/activate"
+}
+
+export type ProviderAccountsActivateErrors = {
+  /**
+   * ProviderAuthError | InvalidRequestError
+   */
+  400: ProviderAuthError1 | InvalidRequestError
+}
+
+export type ProviderAccountsActivateError = ProviderAccountsActivateErrors[keyof ProviderAccountsActivateErrors]
+
+export type ProviderAccountsActivateResponses = {
+  /**
+   * Accounts with the newly active account, keys masked
+   */
+  200: {
+    providerID: string
+    accounts: Array<{
+      id: string
+      label: string
+      maskedKey: string
+      enabled: boolean
+      status?: "ok" | "invalid" | "cooling"
+      createdAt?: number
+      lastUsedAt?: number
+      cooldownUntil?: number
+      usage?: {
+        input: number
+        output: number
+        cost: number
+        turns: number
+        updatedAt: number
+      }
+    }>
+    active?: string
+    strategy: "manual" | "failover" | "roundRobin"
+  }
+}
+
+export type ProviderAccountsActivateResponse =
+  ProviderAccountsActivateResponses[keyof ProviderAccountsActivateResponses]
+
+export type ProviderAccountsStrategyData = {
+  body?: {
+    strategy: "manual" | "failover" | "roundRobin"
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/accounts/strategy"
+}
+
+export type ProviderAccountsStrategyErrors = {
+  /**
+   * ProviderAuthError | InvalidRequestError
+   */
+  400: ProviderAuthError1 | InvalidRequestError
+}
+
+export type ProviderAccountsStrategyError = ProviderAccountsStrategyErrors[keyof ProviderAccountsStrategyErrors]
+
+export type ProviderAccountsStrategyResponses = {
+  /**
+   * Accounts with the updated strategy, keys masked
+   */
+  200: {
+    providerID: string
+    accounts: Array<{
+      id: string
+      label: string
+      maskedKey: string
+      enabled: boolean
+      status?: "ok" | "invalid" | "cooling"
+      createdAt?: number
+      lastUsedAt?: number
+      cooldownUntil?: number
+      usage?: {
+        input: number
+        output: number
+        cost: number
+        turns: number
+        updatedAt: number
+      }
+    }>
+    active?: string
+    strategy: "manual" | "failover" | "roundRobin"
+  }
+}
+
+export type ProviderAccountsStrategyResponse =
+  ProviderAccountsStrategyResponses[keyof ProviderAccountsStrategyResponses]
+
+export type ProviderModelsFetchData = {
+  body?: {
+    baseURL: string
+    headers?: {
+      [key: string]: string
+    }
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/models"
+}
+
+export type ProviderModelsFetchErrors = {
+  /**
+   * ProviderAuthError | InvalidRequestError
+   */
+  400: ProviderAuthError1 | InvalidRequestError
+}
+
+export type ProviderModelsFetchError = ProviderModelsFetchErrors[keyof ProviderModelsFetchErrors]
+
+export type ProviderModelsFetchResponses = {
+  /**
+   * Model ids the provider reports for its stored credential
+   */
+  200: {
+    models: Array<{
+      id: string
+      name?: string
+    }>
+  }
+}
+
+export type ProviderModelsFetchResponse = ProviderModelsFetchResponses[keyof ProviderModelsFetchResponses]
+
+export type ProviderAccountsVerifyData = {
+  body?: {
+    accountID?: string
+    key?: string
+  }
+  path: {
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/accounts/verify"
+}
+
+export type ProviderAccountsVerifyErrors = {
+  /**
+   * ProviderAuthError | InvalidRequestError
+   */
+  400: ProviderAuthError1 | InvalidRequestError
+}
+
+export type ProviderAccountsVerifyError = ProviderAccountsVerifyErrors[keyof ProviderAccountsVerifyErrors]
+
+export type ProviderAccountsVerifyResponses = {
+  /**
+   * Verification outcome for a stored or supplied API key
+   */
+  200: {
+    status: "ok" | "invalid" | "rateLimited" | "unknown"
+    httpStatus?: number
+  }
+}
+
+export type ProviderAccountsVerifyResponse = ProviderAccountsVerifyResponses[keyof ProviderAccountsVerifyResponses]
 
 export type ProviderOauthCallbackData = {
   body?: {

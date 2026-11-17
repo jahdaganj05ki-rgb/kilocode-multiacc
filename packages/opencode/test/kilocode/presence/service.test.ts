@@ -26,6 +26,10 @@ const authLayer = Layer.succeed(
     all: () => Effect.succeed({} as never),
     set: () => Effect.void,
     remove: () => Effect.void,
+    accounts: () => Effect.succeed([]),
+    setAccounts: () => Effect.void,
+    activate: () => Effect.void,
+    markAccount: () => Effect.void,
   }),
 )
 

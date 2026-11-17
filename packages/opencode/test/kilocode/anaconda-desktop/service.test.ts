@@ -72,6 +72,10 @@ it.live("sync atomically replaces the standard auth record and invalidates provi
         set: (id, value) => Ref.update(records, (items) => ({ ...items, [id]: value })),
         remove: (id) =>
           Ref.update(records, (items) => Object.fromEntries(Object.entries(items).filter(([key]) => key !== id))),
+        accounts: () => Effect.succeed([]),
+        setAccounts: () => Effect.void,
+        activate: () => Effect.void,
+        markAccount: () => Effect.void,
       }),
     )
     const cache = Layer.mock(ModelCache.Service)({

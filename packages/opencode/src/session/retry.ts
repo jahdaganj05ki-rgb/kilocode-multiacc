@@ -4,6 +4,8 @@ import { Cause, Clock, Duration, Effect, Schedule } from "effect"
 import { MessageV2 } from "./message-v2"
 import { isKiloError } from "@/kilocode/kilo-errors" // kilocode_change
 import { SessionNetwork } from "./network" // kilocode_change
+import { KiloProviderAccounts } from "@/kilocode/provider/accounts" // kilocode_change - API-key account failover
+import { KiloAccountState } from "@/kilocode/provider/account-state" // kilocode_change - persist per-account health
 import { iife } from "@/util/iife"
 import { isRecord } from "@/util/record"
 
@@ -154,7 +156,14 @@ export function policy(opts: {
       // kilocode_change end
 
       const error = opts.parse(meta.input)
-      const retry = retryable(error, opts.provider)
+      // kilocode_change start - 401/403 invalidate the account and 429 cools it down; when
+      // another account can serve the request, retry switches to it on the next attempt.
+      const failure = KiloProviderAccounts.failure({ providerID: opts.provider, error })
+      if (failure)
+        KiloAccountState.record(opts.provider, failure.accountID, failure.state) // kilocode_change - write through auth.json
+      const switched = failure ? KiloProviderAccounts.switchable(opts.provider, failure.accountID) : false
+      const retry = retryable(error, opts.provider) ?? (switched ? { message: "Switching provider account" } : undefined)
+      // kilocode_change end
       if (!retry) return Cause.done(meta.attempt)
       return Effect.gen(function* () {
         // kilocode_change start — handle network disconnect via offline handler

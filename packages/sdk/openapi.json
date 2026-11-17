@@ -6062,6 +6062,1000 @@
         ]
       }
     },
+    "/provider/{providerID}/accounts": {
+      "get": {
+        "tags": ["provider"],
+        "operationId": "provider.accounts.list",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accounts of an API-key provider, keys masked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerID": {
+                      "type": "string"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "maskedKey": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["ok", "invalid", "cooling"]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "lastUsedAt": {
+                            "type": "number"
+                          },
+                          "cooldownUntil": {
+                            "type": "number"
+                          },
+                          "usage": {
+                            "type": "object",
+                            "properties": {
+                              "input": {
+                                "type": "number"
+                              },
+                              "output": {
+                                "type": "number"
+                              },
+                              "cost": {
+                                "type": "number"
+                              },
+                              "turns": {
+                                "type": "number"
+                              },
+                              "updatedAt": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["input", "output", "cost", "turns", "updatedAt"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["id", "label", "maskedKey", "enabled"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "active": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string",
+                      "enum": ["manual", "failover", "roundRobin"]
+                    }
+                  },
+                  "required": ["providerID", "accounts", "strategy"],
+                  "additionalProperties": false,
+                  "description": "Accounts of an API-key provider, keys masked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderAuthError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderAuthError1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "List the API-key accounts of a provider. Keys are masked.",
+        "summary": "List provider accounts",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.provider.accounts.list({\n  ...\n})"
+          }
+        ]
+      },
+      "put": {
+        "tags": ["provider"],
+        "operationId": "provider.accounts.set",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated accounts of an API-key provider, keys masked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerID": {
+                      "type": "string"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "maskedKey": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["ok", "invalid", "cooling"]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "lastUsedAt": {
+                            "type": "number"
+                          },
+                          "cooldownUntil": {
+                            "type": "number"
+                          },
+                          "usage": {
+                            "type": "object",
+                            "properties": {
+                              "input": {
+                                "type": "number"
+                              },
+                              "output": {
+                                "type": "number"
+                              },
+                              "cost": {
+                                "type": "number"
+                              },
+                              "turns": {
+                                "type": "number"
+                              },
+                              "updatedAt": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["input", "output", "cost", "turns", "updatedAt"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["id", "label", "maskedKey", "enabled"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "active": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string",
+                      "enum": ["manual", "failover", "roundRobin"]
+                    }
+                  },
+                  "required": ["providerID", "accounts", "strategy"],
+                  "additionalProperties": false,
+                  "description": "Updated accounts of an API-key provider, keys masked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderAuthError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderAuthError1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Create, update or remove API-key accounts in one call. Omitted accounts are removed; omitted keys keep the stored credential.",
+        "summary": "Replace provider accounts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accounts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "active": {
+                    "type": "string"
+                  },
+                  "strategy": {
+                    "type": "string",
+                    "enum": ["manual", "failover", "roundRobin"]
+                  }
+                },
+                "required": ["accounts"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.provider.accounts.set({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/provider/{providerID}/accounts/{accountID}": {
+      "delete": {
+        "tags": ["provider"],
+        "operationId": "provider.accounts.remove",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "accountID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remaining accounts, keys masked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerID": {
+                      "type": "string"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "maskedKey": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["ok", "invalid", "cooling"]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "lastUsedAt": {
+                            "type": "number"
+                          },
+                          "cooldownUntil": {
+                            "type": "number"
+                          },
+                          "usage": {
+                            "type": "object",
+                            "properties": {
+                              "input": {
+                                "type": "number"
+                              },
+                              "output": {
+                                "type": "number"
+                              },
+                              "cost": {
+                                "type": "number"
+                              },
+                              "turns": {
+                                "type": "number"
+                              },
+                              "updatedAt": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["input", "output", "cost", "turns", "updatedAt"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["id", "label", "maskedKey", "enabled"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "active": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string",
+                      "enum": ["manual", "failover", "roundRobin"]
+                    }
+                  },
+                  "required": ["providerID", "accounts", "strategy"],
+                  "additionalProperties": false,
+                  "description": "Remaining accounts, keys masked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderAuthError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderAuthError1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Remove one API-key account from a provider.",
+        "summary": "Remove a provider account",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.provider.accounts.remove({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/provider/{providerID}/accounts/{accountID}/activate": {
+      "post": {
+        "tags": ["provider"],
+        "operationId": "provider.accounts.activate",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "accountID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accounts with the newly active account, keys masked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerID": {
+                      "type": "string"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "maskedKey": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["ok", "invalid", "cooling"]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "lastUsedAt": {
+                            "type": "number"
+                          },
+                          "cooldownUntil": {
+                            "type": "number"
+                          },
+                          "usage": {
+                            "type": "object",
+                            "properties": {
+                              "input": {
+                                "type": "number"
+                              },
+                              "output": {
+                                "type": "number"
+                              },
+                              "cost": {
+                                "type": "number"
+                              },
+                              "turns": {
+                                "type": "number"
+                              },
+                              "updatedAt": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["input", "output", "cost", "turns", "updatedAt"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["id", "label", "maskedKey", "enabled"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "active": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string",
+                      "enum": ["manual", "failover", "roundRobin"]
+                    }
+                  },
+                  "required": ["providerID", "accounts", "strategy"],
+                  "additionalProperties": false,
+                  "description": "Accounts with the newly active account, keys masked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderAuthError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderAuthError1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Make one API-key account the active account for its provider.",
+        "summary": "Activate a provider account",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.provider.accounts.activate({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/provider/{providerID}/accounts/strategy": {
+      "put": {
+        "tags": ["provider"],
+        "operationId": "provider.accounts.strategy",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accounts with the updated strategy, keys masked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerID": {
+                      "type": "string"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "maskedKey": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["ok", "invalid", "cooling"]
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "lastUsedAt": {
+                            "type": "number"
+                          },
+                          "cooldownUntil": {
+                            "type": "number"
+                          },
+                          "usage": {
+                            "type": "object",
+                            "properties": {
+                              "input": {
+                                "type": "number"
+                              },
+                              "output": {
+                                "type": "number"
+                              },
+                              "cost": {
+                                "type": "number"
+                              },
+                              "turns": {
+                                "type": "number"
+                              },
+                              "updatedAt": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["input", "output", "cost", "turns", "updatedAt"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["id", "label", "maskedKey", "enabled"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "active": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string",
+                      "enum": ["manual", "failover", "roundRobin"]
+                    }
+                  },
+                  "required": ["providerID", "accounts", "strategy"],
+                  "additionalProperties": false,
+                  "description": "Accounts with the updated strategy, keys masked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderAuthError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderAuthError1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Choose how accounts rotate: manual, failover on auth/quota errors, or round robin per turn.",
+        "summary": "Set the account strategy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "strategy": {
+                    "type": "string",
+                    "enum": ["manual", "failover", "roundRobin"]
+                  }
+                },
+                "required": ["strategy"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.provider.accounts.strategy({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/provider/{providerID}/models": {
+      "post": {
+        "tags": ["provider"],
+        "operationId": "provider.models.fetch",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model ids the provider reports for its stored credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["id"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["models"],
+                  "additionalProperties": false,
+                  "description": "Model ids the provider reports for its stored credential"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderAuthError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderAuthError1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "List models from a provider's OpenAI-compatible /models endpoint using the active account key. Only allowed for the provider's stored base URL, so a stored key can never be redirected elsewhere.",
+        "summary": "Fetch provider models with the stored credential",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseURL": {
+                    "type": "string"
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["baseURL"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.provider.models.fetch({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/provider/{providerID}/accounts/verify": {
+      "post": {
+        "tags": ["provider"],
+        "operationId": "provider.accounts.verify",
+        "parameters": [
+          {
+            "name": "providerID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verification outcome for a stored or supplied API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok", "invalid", "rateLimited", "unknown"]
+                    },
+                    "httpStatus": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["status"],
+                  "additionalProperties": false,
+                  "description": "Verification outcome for a stored or supplied API key"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderAuthError | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderAuthError1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Probe the provider's model endpoint with a stored account key or a supplied key and classify the result.",
+        "summary": "Verify a provider API key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accountID": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createKiloClient } from \"@kilocode/sdk\"\n\nconst client = createKiloClient()\nawait client.provider.accounts.verify({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/provider/{providerID}/oauth/callback": {
       "post": {
         "tags": ["provider"],
@@ -31549,6 +32543,76 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["ok", "invalid", "cooling"]
+                },
+                "createdAt": {
+                  "type": "number"
+                },
+                "lastUsedAt": {
+                  "type": "number"
+                },
+                "cooldownUntil": {
+                  "type": "number"
+                },
+                "usage": {
+                  "type": "object",
+                  "properties": {
+                    "input": {
+                      "type": "number"
+                    },
+                    "output": {
+                      "type": "number"
+                    },
+                    "cost": {
+                      "type": "number"
+                    },
+                    "turns": {
+                      "type": "number"
+                    },
+                    "updatedAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["input", "output", "cost", "turns", "updatedAt"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["id", "label", "key"],
+              "additionalProperties": false
+            }
+          },
+          "active": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string",
+            "enum": ["manual", "failover", "roundRobin"]
           }
         },
         "required": ["type", "key"],

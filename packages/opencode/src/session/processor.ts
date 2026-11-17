@@ -28,6 +28,8 @@ import { PermissionProvenance } from "@/kilocode/permission/provenance" // kiloc
 import { KiloToolInput } from "@/kilocode/session/tool-input" // kilocode_change
 import { KiloSessionOverflow } from "@/kilocode/session/overflow"
 import { KiloRoutedModel } from "@/kilocode/session/routed-model"
+import { KiloProviderAccounts } from "@/kilocode/provider/accounts" // kilocode_change - account last use
+import { KiloAccountState } from "@/kilocode/provider/account-state" // kilocode_change - account last use
 import { KiloResponseMetadata } from "@/kilocode/session/response-metadata"
 import { KiloGeneratedFile } from "@/kilocode/session/generated-file"
 import { KiloReasoningReplay } from "@/kilocode/session/reasoning-replay"
@@ -685,6 +687,17 @@ const layer = Layer.effect(
               usage: value.usage ?? new Usage({}),
               metadata: value.providerMetadata,
             })
+            // kilocode_change start - a settled step means the account served the turn
+            const accountID = KiloProviderAccounts.turnAccount(ctx.assistantMessage.parentID, ctx.model.providerID)
+            if (accountID) {
+              KiloAccountState.touch(ctx.model.providerID, accountID)
+              KiloAccountState.spend(ctx.model.providerID, accountID, {
+                input: usage.tokens.input + usage.tokens.cache.read + usage.tokens.cache.write,
+                output: usage.tokens.output + usage.tokens.reasoning,
+                cost: usage.cost,
+              })
+            }
+            // kilocode_change end
             // kilocode_change start
             const model = KiloRoutedModel.readAuto(value.providerMetadata, {
               providerID: ctx.model.providerID,

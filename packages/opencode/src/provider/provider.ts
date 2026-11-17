@@ -1261,7 +1261,12 @@ export interface Interface {
   readonly list: () => Effect.Effect<Record<ProviderV2.ID, Info>>
   readonly getProvider: (providerID: ProviderV2.ID) => Effect.Effect<Info>
   readonly getModel: (providerID: ProviderV2.ID, modelID: ModelV2.ID) => Effect.Effect<Model, ModelNotFoundError>
-  readonly getLanguage: (model: Model) => Effect.Effect<LanguageModelV3, ModelNotFoundError>
+  // kilocode_change start - account credential override
+  readonly getLanguage: (
+    model: Model,
+    credential?: { readonly id: string; readonly apiKey?: string },
+  ) => Effect.Effect<LanguageModelV3, ModelNotFoundError>
+  // kilocode_change end
   readonly closest: (
     providerID: ProviderV2.ID,
     query: string[],
@@ -1835,7 +1840,16 @@ const layer = Layer.effect(
 
     const list = Effect.fn("Provider.list")(() => InstanceState.use(state, (s) => s.providers))
 
-    async function resolveSDK(model: Model, s: State, envs: Record<string, string | undefined>) {
+    // kilocode_change start - per-account credential override for API-key providers
+    type Credential = { readonly id: string; readonly apiKey?: string }
+
+    async function resolveSDK(
+      model: Model,
+      s: State,
+      envs: Record<string, string | undefined>,
+      credential?: Credential,
+    ) {
+      // kilocode_change end
       try {
         const provider = s.providers[model.providerID]
         const options = { ...provider.options }
@@ -1884,6 +1898,11 @@ const layer = Layer.effect(
 
         if (baseURL !== undefined) options["baseURL"] = baseURL
         if (options["apiKey"] === undefined && provider.key) options["apiKey"] = provider.key
+        // kilocode_change start - serve this request with the selected account. Only plain
+        // API keys are replaced; Bedrock/Vertex keep their structured credentials.
+        if (credential?.apiKey && (options["apiKey"] !== undefined || provider.key !== undefined))
+          options["apiKey"] = credential.apiKey
+        // kilocode_change end
         if (model.headers)
           options["headers"] = {
             ...options["headers"],
@@ -1894,6 +1913,7 @@ const layer = Layer.effect(
           JSON.stringify({
             providerID: model.providerID,
             npm: model.api.npm,
+            account: credential?.id, // kilocode_change - one SDK per account
             options,
           }),
         )
@@ -2022,16 +2042,21 @@ const layer = Layer.effect(
       return info
     })
 
-    const getLanguage = Effect.fn("Provider.getLanguage")(function* (model: Model) {
+    // kilocode_change start - account credential override
+    const getLanguage = Effect.fn("Provider.getLanguage")(function* (
+      model: Model,
+      credential?: Credential,
+    ) {
+      // kilocode_change end
       const s = yield* InstanceState.get(state)
       const envs = yield* env.all()
-      const key = `${model.providerID}/${model.id}`
+      const key = `${model.providerID}/${model.id}${credential ? `#${credential.id}` : ""}` // kilocode_change
       if (s.models.has(key)) return s.models.get(key)!
 
       const provider = s.providers[model.providerID]
       return yield* EffectPromise.refineRejection(
         async () => {
-          const sdk = await resolveSDK(model, s, envs)
+          const sdk = await resolveSDK(model, s, envs, credential) // kilocode_change
           const language = s.modelLoaders[model.providerID]
             ? await s.modelLoaders[model.providerID](
                 sdk,

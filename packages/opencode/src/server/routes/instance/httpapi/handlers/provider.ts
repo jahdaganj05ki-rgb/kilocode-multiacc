@@ -6,6 +6,8 @@ import { Provider } from "@/provider/provider"
 import { mapValues, pickBy } from "remeda" // kilocode_change
 import { ModelCache } from "@/provider/model-cache" // kilocode_change
 import { Auth } from "@/auth" // kilocode_change
+import { KiloProviderAccounts } from "@/kilocode/provider/accounts" // kilocode_change - account management
+import { KiloProviderProbe } from "@/kilocode/provider/probe" // kilocode_change - account verification
 import { organization, recommend } from "@/kilocode/provider/catalog" // kilocode_change
 import { ModelV2 } from "@opencode-ai/core/model" // kilocode_change
 import { Option } from "effect" // kilocode_change
@@ -127,10 +129,21 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
         if (model) defaults[ProviderV2.ID.kilo] = ModelV2.ID.make(model)
       }
       return {
-        all: Object.values(validProviders).map((item) => ({
-          ...Provider.toPublicInfo(item),
-          metadata: providerMetadata(item.id),
-        })), // kilocode_change
+        all: Object.values(validProviders).map((item) => {
+          const publicItem = Provider.toPublicInfo(item)
+          // kilocode_change start - never hand a usable credential to a client
+          const options =
+            publicItem.options && typeof publicItem.options.apiKey === "string"
+              ? { ...publicItem.options, apiKey: KiloProviderAccounts.maskKey(publicItem.options.apiKey) }
+              : publicItem.options
+          return {
+            ...publicItem,
+            ...(publicItem.key ? { key: KiloProviderAccounts.maskKey(publicItem.key) } : {}),
+            options,
+            metadata: providerMetadata(item.id),
+          }
+          // kilocode_change end
+        }), // kilocode_change
         default: defaults,
         connected: Object.keys(connected),
         failed: [...failedSet],
@@ -189,9 +202,250 @@ export const providerHandlers = HttpApiBuilder.group(InstanceHttpApi, "provider"
       return true
     })
 
+    // kilocode_change start - API-key account management
+    const accountError = (providerID: ProviderV2.ID, message: string) =>
+      new ProviderAuthApiError({ name: "BadRequest", data: { providerID, message } })
+
+    // Storage failures surface as a normal provider auth error instead of an untyped 500.
+    const guarded = <A, E, R>(providerID: ProviderV2.ID, body: Effect.Effect<A, E | Auth.AuthError, R>) =>
+      body.pipe(
+        Effect.catchIf(
+          (error): error is Auth.AuthError => error instanceof Auth.AuthError,
+          (error) => Effect.fail(accountError(providerID, error.message)),
+        ),
+      )
+
+    const accountsView = (providerID: ProviderV2.ID) =>
+      guarded(
+        providerID,
+        Effect.gen(function* () {
+          const info = yield* access.get(providerID)
+          const current = info?.type === "api" ? (Auth.normalize(info) as Auth.Api) : undefined
+          return {
+            providerID,
+            accounts: (current?.accounts ?? []).map((item) => KiloProviderAccounts.viewAccount(item)),
+            ...(current?.active !== undefined ? { active: current.active } : {}),
+            strategy: current?.strategy ?? Auth.DEFAULT_STRATEGY,
+          }
+        }),
+      )
+
+    const accounts = Effect.fn("ProviderHttpApi.accounts.list")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+    }) {
+      return yield* accountsView(ctx.params.providerID)
+    })
+
+    const accountsSet = Effect.fn("ProviderHttpApi.accounts.set")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+      payload: {
+        accounts: ReadonlyArray<KiloProviderAccounts.AccountInput>
+        active?: string
+        strategy?: Auth.Strategy
+      }
+    }) {
+      const providerID = ctx.params.providerID
+      return yield* guarded(
+        providerID,
+        Effect.gen(function* () {
+          const info = yield* access.get(providerID)
+          if (info && info.type !== "api")
+            return yield* accountError(providerID, "Provider does not use API-key authentication")
+          const change = (stored: readonly Auth.Account[]) =>
+            KiloProviderAccounts.mergeAccounts(stored, ctx.payload.accounts)
+          // Reject an empty result up front so the client gets a 400 instead of a no-op write.
+          const merged = change(info ? Auth.accountsOf(info) : [])
+          if (merged.length === 0)
+            return yield* accountError(providerID, "At least one account with an API key is required")
+          const names = merged.map((item) => item.label.trim().toLowerCase())
+          // Labels identify accounts in the CLI and the dialog, so they must be unique.
+          if (new Set(names).size !== names.length)
+            return yield* accountError(providerID, "Account labels must be unique")
+          // Merge inside the credential lock: a running turn may mark an account while the
+          // dialog saves, and a read-modify-write here would drop that status again.
+          const options = {
+            ...(ctx.payload.active !== undefined ? { active: ctx.payload.active } : {}),
+            ...(ctx.payload.strategy !== undefined ? { strategy: ctx.payload.strategy } : {}),
+          }
+          const edit = access.edit
+          if (edit) yield* edit(providerID, change, options)
+          else
+            yield* access.setAccounts!(providerID, {
+              accounts: change(info ? Auth.accountsOf(info) : []),
+              ...options,
+            })
+          return yield* accountsView(providerID)
+        }),
+      )
+    })
+
+    const accountsRemove = Effect.fn("ProviderHttpApi.accounts.remove")(function* (ctx: {
+      params: { providerID: ProviderV2.ID; accountID: string }
+    }) {
+      const providerID = ctx.params.providerID
+      return yield* guarded(
+        providerID,
+        Effect.gen(function* () {
+          const info = yield* access.get(providerID)
+          const stored = info ? Auth.accountsOf(info) : []
+          const accountID = ctx.params.accountID
+          if (!stored.some((item) => item.id === accountID)) return yield* accountError(providerID, "Unknown account")
+          if (stored.length === 1)
+            return yield* accountError(providerID, "Cannot remove the last account. Disconnect the provider instead.")
+          const change = (accounts: readonly Auth.Account[]) => accounts.filter((item) => item.id !== accountID)
+          // Remove inside the credential lock, so a health update of a running turn stays.
+          const edit = access.edit
+          if (edit) yield* edit(providerID, change)
+          else yield* access.setAccounts!(providerID, { accounts: change(stored) })
+          return yield* accountsView(providerID)
+        }),
+      )
+    })
+
+    const accountsActivate = Effect.fn("ProviderHttpApi.accounts.activate")(function* (ctx: {
+      params: { providerID: ProviderV2.ID; accountID: string }
+    }) {
+      const providerID = ctx.params.providerID
+      return yield* guarded(
+        providerID,
+        Effect.gen(function* () {
+          const info = yield* access.get(providerID)
+          const stored = info ? Auth.accountsOf(info) : []
+          if (!stored.some((item) => item.id === ctx.params.accountID))
+            return yield* accountError(providerID, "Unknown account")
+          yield* access.activate!(providerID, ctx.params.accountID)
+          return yield* accountsView(providerID)
+        }),
+      )
+    })
+
+    const accountsStrategy = Effect.fn("ProviderHttpApi.accounts.strategy")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+      payload: { strategy: Auth.Strategy }
+    }) {
+      const providerID = ctx.params.providerID
+      return yield* guarded(
+        providerID,
+        Effect.gen(function* () {
+          const info = yield* access.get(providerID)
+          const stored = info ? Auth.accountsOf(info) : []
+          if (stored.length === 0) return yield* accountError(providerID, "Provider has no API-key accounts")
+          // The strategy change touches no accounts; keep whatever health the list has now.
+          const edit = access.edit
+          if (edit) yield* edit(providerID, (accounts) => accounts, { strategy: ctx.payload.strategy })
+          else yield* access.setAccounts!(providerID, { accounts: stored, strategy: ctx.payload.strategy })
+          return yield* accountsView(providerID)
+        }),
+      )
+    })
+
+    const modelsFetch = Effect.fn("ProviderHttpApi.models.fetch")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+      payload: { baseURL: string; headers?: Record<string, string> }
+    }) {
+      const providerID = ctx.params.providerID
+      return yield* guarded(
+        providerID,
+        Effect.gen(function* () {
+          const info = yield* access.get(providerID)
+          const current = info?.type === "api" ? (Auth.normalize(info) as Auth.Api) : undefined
+          const active = current?.accounts?.find((item) => item.id === current.active)
+          const key = active?.key
+          if (!key) return yield* accountError(providerID, "API key required")
+
+          const connected = yield* provider.list()
+          const item = connected[providerID]
+          const stored =
+            (typeof item?.options?.baseURL === "string" ? item.options.baseURL : undefined) ??
+            Object.values(item?.models ?? {})
+              .map((model) => model.api.url)
+              .find((value) => !!value)
+          const normalize = (value: string) => value.trim().replace(/\/+$/, "")
+          // The stored key is only ever sent to the URL the provider is configured for.
+          if (!stored || normalize(stored) !== normalize(ctx.payload.baseURL))
+            return yield* accountError(providerID, "Base URL does not match the stored provider")
+
+          const response = yield* Effect.tryPromise({
+            try: (signal) =>
+              fetch(`${normalize(ctx.payload.baseURL)}/models`, {
+                headers: {
+                  accept: "application/json",
+                  authorization: `Bearer ${key}`,
+                  ...ctx.payload.headers,
+                },
+                signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+              }),
+            catch: () => undefined,
+          }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          if (!response) return yield* accountError(providerID, "Failed to fetch models")
+          if (!response.ok) {
+            yield* Effect.promise(() => response.body?.cancel().catch(() => undefined) ?? Promise.resolve())
+            return yield* accountError(providerID, `HTTP ${response.status}`)
+          }
+          const body = yield* Effect.tryPromise({
+            try: () => response.json() as Promise<{ data?: Array<{ id?: unknown; name?: unknown }> }>,
+            catch: () => undefined,
+          }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          const models = (body?.data ?? [])
+            .filter((item): item is { id: string; name?: string } => typeof item.id === "string")
+            .map((item) => ({ id: item.id, ...(typeof item.name === "string" ? { name: item.name } : {}) }))
+          return { models }
+        }),
+      )
+    })
+
+    const accountsVerify = Effect.fn("ProviderHttpApi.accounts.verify")(function* (ctx: {
+      params: { providerID: ProviderV2.ID }
+      payload: { accountID?: string; key?: string }
+    }) {
+      const providerID = ctx.params.providerID
+      const info = yield* access.get(providerID).pipe(
+        Effect.catchIf(
+          (error): error is Auth.AuthError => error instanceof Auth.AuthError,
+          (error) => Effect.fail(accountError(providerID, error.message)),
+        ),
+      )
+      const stored = info ? Auth.accountsOf(info) : []
+      const account = ctx.payload.accountID ? stored.find((item) => item.id === ctx.payload.accountID) : undefined
+      const key = ctx.payload.key?.trim() || account?.key
+      if (!key) return yield* accountError(providerID, "API key required")
+
+      const connected = yield* provider.list()
+      const url = Object.values(connected[providerID]?.models ?? {})
+        .map((model) => model.api.url)
+        .find((value) => !!value)
+      // Providers without a discoverable model endpoint cannot be probed generically.
+      if (!url) return { status: "unknown" as const }
+
+      const result = yield* Effect.promise(() => KiloProviderProbe.probe({ providerID, key, url }))
+      const status = result.status
+      // Persist health for a stored account so the dialog and later turns agree
+      // without waiting for a failing turn.
+      const accountID = ctx.payload.accountID
+      const state = KiloProviderAccounts.verified(status, result.retryAfter)
+      const health = state || result.quota ? { ...state, ...(result.quota ? { quota: result.quota } : {}) } : undefined
+      if (accountID && health)
+        yield* (access.markAccount?.(providerID, accountID, health) ?? Effect.void).pipe(
+          // A failed write must not hide the probe result.
+          Effect.catchIf(
+            (error): error is Auth.AuthError => error instanceof Auth.AuthError,
+            (error) => Effect.logWarning("failed to persist provider account health", { providerID, accountID, error }),
+          ),
+        )
+      return result
+    })
+    // kilocode_change end
+
     return handlers
       .handle("list", list)
       .handle("auth", auth)
+      .handle("accounts", accounts) // kilocode_change
+      .handle("accountsSet", accountsSet) // kilocode_change
+      .handle("accountsRemove", accountsRemove) // kilocode_change
+      .handle("accountsActivate", accountsActivate) // kilocode_change
+      .handle("accountsStrategy", accountsStrategy) // kilocode_change
+      .handle("accountsVerify", accountsVerify) // kilocode_change
+      .handle("modelsFetch", modelsFetch) // kilocode_change
       .handleRaw("authorize", authorizeRaw)
       .handle("callback", callback)
   }),

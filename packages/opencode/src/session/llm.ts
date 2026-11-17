@@ -35,6 +35,7 @@ import { SessionExport } from "@/kilocode/session-export"
 import { getActiveOrg } from "@/kilocode/session-export/eligibility"
 import { normalizeUsageForExport, observeFullStreamForExport } from "@/kilocode/session-export/llm"
 import { KiloCustomRouter } from "@/kilocode/auto-routing/router"
+import { KiloProviderAccounts } from "@/kilocode/provider/accounts"
 import { openaiMessages, openaiTools } from "@/kilocode/auto-routing/messages"
 import { organization, token } from "@/kilocode/provider/catalog"
 import { KiloRoutedModel } from "@/kilocode/session/routed-model"
@@ -144,20 +145,28 @@ const live: Layer.Layer<
         mode: input.agent.mode,
       })
 
-      const [language, cfg, item, info] = yield* Effect.all(
-        [
-          provider.getLanguage(input.model),
-          config.get(),
-          provider.getProvider(input.model.providerID),
-          auth.get(input.model.providerID),
-        ],
+      // kilocode_change start - resolve the account that serves this turn before asking the
+      // provider for a language model, so the credential and the SDK cache match the account
+      const [cfg, item, info] = yield* Effect.all(
+        [config.get(), provider.getProvider(input.model.providerID), auth.get(input.model.providerID)],
         { concurrency: "unbounded" },
       )
+      const account = KiloProviderAccounts.resolve({
+        providerID: input.model.providerID,
+        info,
+        turn: input.user.id,
+      })
+      const credential = account ? KiloProviderAccounts.credential(info, account) : info
+      const language = yield* provider.getLanguage(
+        input.model,
+        account ? { id: account.id, apiKey: account.key } : undefined,
+      )
+      // kilocode_change end
       const isWorkflow = language instanceof GitLabWorkflowLanguageModel
       const base = yield* LLMRequestPrep.prepare({
         ...input,
         provider: item,
-        auth: info,
+        auth: credential, // kilocode_change - selected account
         plugin,
         flags,
         isWorkflow,
@@ -347,7 +356,7 @@ const live: Layer.Layer<
         const native = LLMNativeRuntime.stream({
           model: input.model,
           provider: item,
-          auth: info,
+          auth: credential, // kilocode_change - selected account
           llmClient,
           messages: prepared.messages,
           tools: prepared.tools,

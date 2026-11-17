@@ -351,10 +351,24 @@ import type {
   ProjectUpdateErrors,
   ProjectUpdateResponses,
   PromptInput,
+  ProviderAccountsActivateErrors,
+  ProviderAccountsActivateResponses,
+  ProviderAccountsListErrors,
+  ProviderAccountsListResponses,
+  ProviderAccountsRemoveErrors,
+  ProviderAccountsRemoveResponses,
+  ProviderAccountsSetErrors,
+  ProviderAccountsSetResponses,
+  ProviderAccountsStrategyErrors,
+  ProviderAccountsStrategyResponses,
+  ProviderAccountsVerifyErrors,
+  ProviderAccountsVerifyResponses,
   ProviderAuthErrors,
   ProviderAuthResponses,
   ProviderListErrors,
   ProviderListResponses,
+  ProviderModelsFetchErrors,
+  ProviderModelsFetchResponses,
   ProviderOauthAuthorizeErrors,
   ProviderOauthAuthorizeResponses,
   ProviderOauthCallbackErrors,
@@ -4271,6 +4285,306 @@ export class Oauth extends HeyApiClient {
   }
 }
 
+export class Accounts extends HeyApiClient {
+  /**
+   * List provider accounts
+   *
+   * List the API-key accounts of a provider. Keys are masked.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      ProviderAccountsListResponses,
+      ProviderAccountsListErrors,
+      ThrowOnError
+    >({
+      url: "/provider/{providerID}/accounts",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Replace provider accounts
+   *
+   * Create, update or remove API-key accounts in one call. Omitted accounts are removed; omitted keys keep the stored credential.
+   */
+  public set<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      accounts: Array<{
+        id?: string
+        label?: string
+        key?: string
+        metadata?: {
+          [key: string]: string
+        }
+        enabled?: boolean
+      }>
+      active?: string
+      strategy?: "manual" | "failover" | "roundRobin"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "accounts" },
+            { in: "body", key: "active" },
+            { in: "body", key: "strategy" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<ProviderAccountsSetResponses, ProviderAccountsSetErrors, ThrowOnError>({
+      url: "/provider/{providerID}/accounts",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Remove a provider account
+   *
+   * Remove one API-key account from a provider.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      accountID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "path", key: "accountID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      ProviderAccountsRemoveResponses,
+      ProviderAccountsRemoveErrors,
+      ThrowOnError
+    >({
+      url: "/provider/{providerID}/accounts/{accountID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Activate a provider account
+   *
+   * Make one API-key account the active account for its provider.
+   */
+  public activate<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      accountID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "path", key: "accountID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ProviderAccountsActivateResponses,
+      ProviderAccountsActivateErrors,
+      ThrowOnError
+    >({
+      url: "/provider/{providerID}/accounts/{accountID}/activate",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Set the account strategy
+   *
+   * Choose how accounts rotate: manual, failover on auth/quota errors, or round robin per turn.
+   */
+  public strategy<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      strategy: "manual" | "failover" | "roundRobin"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "strategy" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      ProviderAccountsStrategyResponses,
+      ProviderAccountsStrategyErrors,
+      ThrowOnError
+    >({
+      url: "/provider/{providerID}/accounts/strategy",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Verify a provider API key
+   *
+   * Probe the provider's model endpoint with a stored account key or a supplied key and classify the result.
+   */
+  public verify<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      accountID?: string
+      key?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "accountID" },
+            { in: "body", key: "key" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ProviderAccountsVerifyResponses,
+      ProviderAccountsVerifyErrors,
+      ThrowOnError
+    >({
+      url: "/provider/{providerID}/accounts/verify",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Models extends HeyApiClient {
+  /**
+   * Fetch provider models with the stored credential
+   *
+   * List models from a provider's OpenAI-compatible /models endpoint using the active account key. Only allowed for the provider's stored base URL, so a stored key can never be redirected elsewhere.
+   */
+  public fetch<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      baseURL: string
+      headers?: {
+        [key: string]: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "baseURL" },
+            { in: "body", key: "headers" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProviderModelsFetchResponses, ProviderModelsFetchErrors, ThrowOnError>(
+      {
+        url: "/provider/{providerID}/models",
+        ...options,
+        ...params,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+          ...params.headers,
+        },
+      },
+    )
+  }
+}
+
 export class Provider extends HeyApiClient {
   /**
    * List providers
@@ -4335,6 +4649,16 @@ export class Provider extends HeyApiClient {
   private _oauth?: Oauth
   get oauth(): Oauth {
     return (this._oauth ??= new Oauth({ client: this.client }))
+  }
+
+  private _accounts?: Accounts
+  get accounts(): Accounts {
+    return (this._accounts ??= new Accounts({ client: this.client }))
+  }
+
+  private _models?: Models
+  get models(): Models {
+    return (this._models ??= new Models({ client: this.client }))
   }
 }
 
@@ -7010,7 +7334,7 @@ export class Audio extends HeyApiClient {
   }
 }
 
-export class Models extends HeyApiClient {
+export class Models2 extends HeyApiClient {
   /**
    * Image generation models
    *
@@ -7408,9 +7732,9 @@ export class Kilo extends HeyApiClient {
     return (this._audio ??= new Audio({ client: this.client }))
   }
 
-  private _models?: Models
-  get models(): Models {
-    return (this._models ??= new Models({ client: this.client }))
+  private _models?: Models2
+  get models(): Models2 {
+    return (this._models ??= new Models2({ client: this.client }))
   }
 
   private _organization?: Organization
