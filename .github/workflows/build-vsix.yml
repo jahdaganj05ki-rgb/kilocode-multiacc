@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "VSIX target platform (default: win32-x64 on Windows runner)"
+        description: "Comma-separated targets to build (default: linux-x64, win32-x64)"
         required: false
         type: string
         default: ""
@@ -20,7 +20,19 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # GitHub Codespaces laufen auf Linux -> brauchen linux-x64.
+          - os: ubuntu-latest
+            target: linux-x64
+            vsix: kilo-vscode-linux-x64
+          # Windows-Desktop braucht win32-x64.
+          - os: windows-latest
+            target: win32-x64
+            vsix: kilo-vscode-win32-x64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6 # kilocode_change
@@ -29,9 +41,10 @@ jobs:
 
       - uses: ./.github/actions/setup-bun # kilocode_change
 
-      # Baut die CLI-Binärdatei für die aktuelle Runner-Plattform (bin/kilo.exe +
-      # Tree-Sitter-, Sandbox-, bwrap- und FFmpeg-Ressourcen). Ohne bin/kilo.exe kann
-      # der Kilo Agent in der Extension nicht laufen.
+      # Baut die CLI-Binärdatei für die aktuelle Runner-Plattform
+      # (bin/kilo auf Linux, bin/kilo.exe auf Windows) plus Tree-Sitter-,
+      # Sandbox-, bwrap- und FFmpeg-Ressourcen. Ohne bin/kilo kann der
+      # Kilo Agent in der Extension nicht laufen.
       - name: Build CLI binary for current platform
         working-directory: ./packages/kilo-vscode
         run: bun run prepare:cli-binary
@@ -46,14 +59,6 @@ jobs:
         working-directory: ./packages/kilo-vscode
         run: bun run bundle:production
 
-      # Ermittelt das vsce Target für die Windows-Runner-Plattform.
-      - name: Determine VSIX target
-        shell: pwsh
-        run: |
-          $target = "win32-x64"
-          echo "VSCE_TARGET=$target" >> $env:GITHUB_ENV
-          echo "VSIX_NAME=kilo-vscode-$target" >> $env:GITHUB_ENV
-
       - name: Install @vscode/vsce
         run: bun install -g @vscode/vsce # kilocode_change
 
@@ -64,12 +69,12 @@ jobs:
         working-directory: ./packages/kilo-vscode
         env:
           npm_config_ignore_scripts: "true"
-        run: vsce package --no-dependencies --skip-license --target ${{ env.VSCE_TARGET }} -o ${{ env.VSIX_NAME }}.vsix
+        run: vsce package --no-dependencies --skip-license --target ${{ matrix.target }} -o ${{ matrix.vsix }}.vsix
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4 # kilocode_change
         with:
-          name: ${{ env.VSIX_NAME }}
-          path: ./packages/kilo-vscode/${{ env.VSIX_NAME }}.vsix
+          name: ${{ matrix.vsix }}
+          path: ./packages/kilo-vscode/${{ matrix.vsix }}.vsix
           if-no-files-found: error
           retention-days: 30
