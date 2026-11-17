@@ -88,6 +88,12 @@ const SUBCOMMANDS = [
   ["providers", "list"],
   ["providers", "login"],
   ["providers", "logout"],
+  // kilocode_change start - API-key account management coverage
+  ["providers", "account"],
+  ["providers", "account", "add"],
+  ["providers", "account", "enable"],
+  ["providers", "account", "verify"],
+  // kilocode_change end
   ["agent", "create"],
   ["agent", "list"],
   ["session", "list"],

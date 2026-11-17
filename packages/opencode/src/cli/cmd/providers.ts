@@ -17,6 +17,7 @@ import { Process } from "@/util/process"
 import { errorMessage } from "@/util/error"
 import { text } from "node:stream/consumers"
 import { Effect, Option } from "effect"
+import { ProvidersAccountCommand, replaceKey } from "@/kilocode/cli/accounts" // kilocode_change - account commands
 // kilocode_change - @/kilocode/auth/remove is dynamically imported in the logout handler to keep startup fast
 
 type PluginAuth = NonNullable<Hooks["auth"]>
@@ -26,10 +27,16 @@ const promptValue = <Value>(value: Option.Option<Value>) => {
   return Effect.succeed(value.value)
 }
 
-const put = Effect.fn("Cli.providers.put")(function* (key: string, info: Auth.Info) {
+// kilocode_change start - optional account target for `--account` logins
+const put = Effect.fn("Cli.providers.put")(function* (key: string, info: Auth.Info, account?: string) {
   const auth = yield* Auth.Service
+  if (account && info.type === "api") {
+    yield* replaceKey({ auth, providerID: key, query: account, key: info.key, metadata: info.metadata })
+    return
+  }
   yield* Effect.orDie(auth.set(key, info))
 })
+// kilocode_change end
 
 const cliTry = <Value>(message: string, fn: () => PromiseLike<Value>) =>
   Effect.tryPromise({
@@ -41,6 +48,7 @@ const handlePluginAuth = Effect.fn("Cli.providers.pluginAuth")(function* (
   plugin: { auth: PluginAuth },
   provider: string,
   methodName?: string,
+  account?: string, // kilocode_change - named account for API-key logins
 ) {
   const index = yield* Effect.gen(function* () {
     if (!methodName) {
@@ -123,11 +131,17 @@ const handlePluginAuth = Effect.fn("Cli.providers.pluginAuth")(function* (
           })
         }
         if ("key" in result) {
-          yield* put(saveProvider, {
-            type: "api",
-            key: result.key,
-            ...(result.metadata ? { metadata: result.metadata } : {}),
-          })
+          // kilocode_change start - named account for --account
+          yield* put(
+            saveProvider,
+            {
+              type: "api",
+              key: result.key,
+              ...(result.metadata ? { metadata: result.metadata } : {}),
+            },
+            account,
+          )
+          // kilocode_change end
         }
         yield* spinner.stop("Login successful")
       }
@@ -156,11 +170,17 @@ const handlePluginAuth = Effect.fn("Cli.providers.pluginAuth")(function* (
           })
         }
         if ("key" in result) {
-          yield* put(saveProvider, {
-            type: "api",
-            key: result.key,
-            ...(result.metadata ? { metadata: result.metadata } : {}),
-          })
+          // kilocode_change start - named account for --account
+          yield* put(
+            saveProvider,
+            {
+              type: "api",
+              key: result.key,
+              ...(result.metadata ? { metadata: result.metadata } : {}),
+            },
+            account,
+          )
+          // kilocode_change end
         }
         yield* Prompt.log.success("Login successful")
       }
@@ -180,11 +200,17 @@ const handlePluginAuth = Effect.fn("Cli.providers.pluginAuth")(function* (
     const metadata = Object.keys(inputs).length ? { metadata: inputs } : {}
     const authorizeApi = method.authorize
     if (!authorizeApi) {
-      yield* put(provider, {
-        type: "api",
-        key: apiKey,
-        ...metadata,
-      })
+      // kilocode_change start - named account for --account
+      yield* put(
+        provider,
+        {
+          type: "api",
+          key: apiKey,
+          ...metadata,
+        },
+        account,
+      )
+      // kilocode_change end
       yield* Prompt.outro("Done")
       return true
     }
@@ -196,11 +222,17 @@ const handlePluginAuth = Effect.fn("Cli.providers.pluginAuth")(function* (
     if (result.type === "success") {
       const saveProvider = result.provider ?? provider
       const merged = { ...(metadata.metadata ?? {}), ...(result.metadata ?? {}) }
-      yield* put(saveProvider, {
-        type: "api",
-        key: result.key ?? apiKey,
-        ...(Object.keys(merged).length ? { metadata: merged } : {}),
-      })
+      // kilocode_change start - named account for --account
+      yield* put(
+        saveProvider,
+        {
+          type: "api",
+          key: result.key ?? apiKey,
+          ...(Object.keys(merged).length ? { metadata: merged } : {}),
+        },
+        account,
+      )
+      // kilocode_change end
       yield* Prompt.log.success("Login successful")
     }
     yield* Prompt.outro("Done")
@@ -244,7 +276,14 @@ export const ProvidersCommand = cmd({
   // kilocode_change end
   describe: "manage AI providers and credentials",
   builder: (yargs) =>
-    yargs.command(ProvidersListCommand).command(ProvidersLoginCommand).command(ProvidersLogoutCommand).demandCommand(),
+    // kilocode_change start - API-key account management subcommand
+    yargs
+      .command(ProvidersListCommand)
+      .command(ProvidersAccountCommand)
+      .command(ProvidersLoginCommand)
+      .command(ProvidersLogoutCommand)
+      .demandCommand(),
+  // kilocode_change end
   async handler() {},
 })
 
@@ -319,7 +358,14 @@ export const ProvidersLoginCommand = effectCmd({
         alias: ["m"],
         describe: "login method label (skips method selection)",
         type: "string",
+      }) // kilocode_change - account option below
+      // kilocode_change start - replace a specific account instead of the active one
+      .option("account", {
+        alias: ["a"],
+        describe: "account id or label to replace the key of (API-key logins)",
+        type: "string",
       }),
+  // kilocode_change end
   handler: Effect.fn("Cli.providers.login")(function* (args) {
     const authSvc = yield* Auth.Service
 
@@ -444,7 +490,7 @@ export const ProvidersLoginCommand = effectCmd({
 
     const plugin = hooks.findLast((x) => x.auth?.provider === provider)
     if (plugin && plugin.auth) {
-      const handled = yield* handlePluginAuth({ auth: plugin.auth! }, provider, args.method)
+      const handled = yield* handlePluginAuth({ auth: plugin.auth! }, provider, args.method, args.account) // kilocode_change
       if (handled) return
     }
 
@@ -458,7 +504,7 @@ export const ProvidersLoginCommand = effectCmd({
 
       const customPlugin = hooks.findLast((x) => x.auth?.provider === provider)
       if (customPlugin && customPlugin.auth) {
-        const handled = yield* handlePluginAuth({ auth: customPlugin.auth! }, provider, args.method)
+        const handled = yield* handlePluginAuth({ auth: customPlugin.auth! }, provider, args.method, args.account) // kilocode_change
         if (handled) return
       }
 
@@ -492,7 +538,7 @@ export const ProvidersLoginCommand = effectCmd({
       validate: (x) => (x && x.length > 0 ? undefined : "Required"),
     })
     const apiKey = yield* promptValue(key)
-    yield* Effect.orDie(authSvc.set(provider, { type: "api", key: apiKey }))
+    yield* put(provider, { type: "api", key: apiKey }, args.account) // kilocode_change - honour --account
 
     yield* Prompt.outro("Done")
   }),

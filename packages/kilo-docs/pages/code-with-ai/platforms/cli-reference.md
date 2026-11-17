@@ -532,6 +532,7 @@ manage AI providers and credentials
 
 Commands:
   kilo auth list               list providers and credentials  [aliases: ls]
+  kilo auth account            manage the API-key accounts of a provider
   kilo auth login [url]        log in to a provider
   kilo auth logout [provider]  log out from a configured provider
 
@@ -550,6 +551,145 @@ Options:
   --version  Show version number  [boolean]
 ```
 
+### kilo auth account
+
+```
+manage the API-key accounts of a provider
+
+Commands:
+  kilo auth account list                 list the API-key accounts of a provider
+  kilo auth account add [key]            add an API-key account to a provider (prompts for the key when omitted)
+  kilo auth account remove <account>     remove an API-key account from a provider
+  kilo auth account activate <account>   make an account the active one
+  kilo auth account enable <account>     use an account again
+  kilo auth account disable <account>    stop using an account without deleting it
+  kilo auth account strategy <strategy>  choose how accounts rotate (manual, failover, roundRobin)
+  kilo auth account verify [account]     check stored API keys against the provider (one account or --all)
+
+Options:
+  --help     Show help  [boolean]
+  --version  Show version number  [boolean]
+```
+
+### kilo auth account list
+
+```
+list the API-key accounts of a provider
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+```
+
+### kilo auth account add
+
+```
+add an API-key account to a provider (prompts for the key when omitted)
+
+Positionals:
+  key  API key of the account; prompted when omitted  [string]
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+  -l, --label     display name of the account  [string]
+```
+
+### kilo auth account remove
+
+```
+remove an API-key account from a provider
+
+Positionals:
+  account  account id or label  [string]
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+```
+
+### kilo auth account activate
+
+```
+make an account the active one
+
+Positionals:
+  account  account id or label  [string]
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+```
+
+### kilo auth account enable
+
+```
+use an account again
+
+Positionals:
+  account  account id or label  [string]
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+```
+
+### kilo auth account disable
+
+```
+stop using an account without deleting it
+
+Positionals:
+  account  account id or label  [string]
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+```
+
+### kilo auth account strategy
+
+```
+choose how accounts rotate (manual, failover, roundRobin)
+
+Positionals:
+  strategy  manual, failover or roundRobin  [string]
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+```
+
+### kilo auth account verify
+
+```
+check stored API keys against the provider (one account or --all)
+
+Positionals:
+  account  account id or label  [string]
+
+Options:
+      --help      Show help  [boolean]
+      --version   Show version number  [boolean]
+  -p, --provider  provider id  [string] [required]
+      --json      print JSON instead of formatted text  [boolean] [default: false]
+      --all       verify every account  [boolean] [default: false]
+```
+
 ### kilo auth login
 
 ```
@@ -563,6 +703,7 @@ Options:
       --version   Show version number  [boolean]
   -p, --provider  provider id or name to log in to (skips provider selection)  [string]
   -m, --method    login method label (skips method selection)  [string]
+  -a, --account   account id or label to replace the key of (API-key logins)  [string]
 ```
 
 ### kilo auth logout

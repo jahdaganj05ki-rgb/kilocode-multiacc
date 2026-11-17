@@ -25,8 +25,13 @@ export const autocomplete = <Value>(opts: Parameters<typeof prompts.autocomplete
 export const text = (opts: Parameters<typeof prompts.text>[0]) =>
   Effect.promise(() => prompts.text(opts)).pipe(Effect.map((result) => optional(result)))
 
-export const password = (opts: Parameters<typeof prompts.password>[0]) =>
-  Effect.promise(() => prompts.password(opts)).pipe(Effect.map((result) => optional(result)))
+// kilocode_change start - subprocess tests answer the key prompt without a TTY
+export const password = (opts: Parameters<typeof prompts.password>[0]) => {
+  const answer = process.env.KILO_TEST_PROMPT_PASSWORD
+  if (answer !== undefined) return Effect.succeed(Option.some(answer))
+  return Effect.promise(() => prompts.password(opts)).pipe(Effect.map((result) => optional(result)))
+}
+// kilocode_change end
 
 export const spinner = () => {
   const s = prompts.spinner()

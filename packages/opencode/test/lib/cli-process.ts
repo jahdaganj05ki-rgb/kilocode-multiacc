@@ -11,6 +11,7 @@
 //   - KILO_DISABLE_PROJECT_CONFIG : skip walking up for opencode.json
 //   - KILO_PURE                : skip external plugin discovery + install
 //   - KILO_DISABLE_AUTOUPDATE / AUTOCOMPACT / MODELS_FETCH : no background work
+//   - KILO_TEST_PROMPT_PASSWORD : answers the API-key prompt (no TTY here)  // kilocode_change
 // Plus HOME / XDG_* pointing at the tmpdir for belt-and-suspenders isolation.
 //
 // Today only `opencode.run` is fully wired. The shape supports adding more
@@ -271,7 +272,8 @@ export function withCliFixture<A, E>(
       }
     })
 
-    const runArgs = (message: string | undefined, opts?: RunOpts) => { // kilocode_change - accepts undefined message for stdin-only runs
+    const runArgs = (message: string | undefined, opts?: RunOpts) => {
+      // kilocode_change - accepts undefined message for stdin-only runs
       const argv: string[] = ["run"]
       if (opts?.printLogs) argv.push("--print-logs")
       argv.push("--model", opts?.model ?? testModelID)
@@ -301,7 +303,8 @@ export function withCliFixture<A, E>(
       return spawn(runArgs(message, opts), runOpts(opts))
     }
 
-    const startRun = Effect.fn("opencode.startRun")(function* (message: string | undefined, opts?: RunOpts) { // kilocode_change - accepts undefined message for stdin-only runs
+    const startRun = Effect.fn("opencode.startRun")(function* (message: string | undefined, opts?: RunOpts) {
+      // kilocode_change - accepts undefined message for stdin-only runs
       const start = Date.now()
       const options = runOpts(opts)
       // kilocode_change start - stdin "pipe" lets a test hold the child's stdin
@@ -573,10 +576,6 @@ export const cliIt = {
     opts?: number | TestOptions,
   ) =>
     // kilocode_change start - full CLI processes contend heavily during startup after the Effect graph migration
-    test.serial(
-      name,
-      () => Effect.runPromise(Effect.scoped(withCliFixture(body))),
-      opts,
-    ),
+    test.serial(name, () => Effect.runPromise(Effect.scoped(withCliFixture(body))), opts),
   // kilocode_change end
 }
