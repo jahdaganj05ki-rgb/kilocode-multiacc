@@ -165,9 +165,14 @@ import {
   completeProviderOAuth as completeOAuthAction,
   disconnectProvider as disconnectProviderAction,
   saveCustomProvider as saveCustomProviderAction,
-  resolveStoredKey,
+  listProviderAccounts as listProviderAccountsAction,
+  saveProviderAccounts as saveProviderAccountsAction,
+  activateProviderAccount as activateProviderAccountAction,
+  removeProviderAccount as removeProviderAccountAction,
+  setProviderAccountStrategy as setProviderAccountStrategyAction,
+  verifyProviderAccount as verifyProviderAccountAction,
+  fetchProviderModels as fetchProviderModelsAction,
 } from "./provider-actions"
-import type { StoredProviderKey } from "./provider-actions"
 import { createCatalogRetry } from "./kilo-provider/catalog-retry"
 import { AnacondaDesktopBridge } from "./anaconda-desktop/bridge"
 import { fetchOpenAIModels, FetchModelsError } from "./shared/fetch-models"
@@ -419,6 +424,15 @@ function withGlobalSpeechToTextMessage(message: unknown): unknown {
   return { ...msg, config: withGlobalSpeechToText(msg.config as SpeechToTextConfig, global) }
 }
 
+const ACCOUNT_ACTIONS: Record<string, "list" | "save" | "activate" | "remove" | "strategy" | "verify"> = {
+  listProviderAccounts: "list",
+  saveProviderAccounts: "save",
+  activateProviderAccount: "activate",
+  removeProviderAccount: "remove",
+  setProviderAccountStrategy: "strategy",
+  verifyProviderAccount: "verify",
+}
+
 export class KiloProvider implements vscode.WebviewViewProvider, TelemetryPropertiesProvider {
   public static readonly viewType = "kilo-code.SidebarProvider"
   private readonly instanceId = crypto.randomUUID()
@@ -436,13 +450,6 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private cachedProvidersMessage: unknown = null
   /** Directory the cached provider payload was loaded for, so recovery is keyed to the active project. */
   private cachedProvidersDirectory: string | null = null
-  /**
-   * Provider API keys retained extension-side for authenticated model
-   * fetches (#10139). Keys are stripped before provider data reaches the
-   * webview, so fetch requests for an existing provider carry a providerID
-   * and the key is resolved here. Refreshed on every provider fetch.
-   */
-  private storedProviderKeys: Record<string, StoredProviderKey> = {}
   /** Coalesce provider refreshes — at most one follow-up rerun when a request lands mid-flight. */
   private providersRefresh: Promise<void> | null = null
   private providersQueued = false
@@ -1348,6 +1355,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       if (await this.handleProfileDataMessage(message)) return
       if (this.handleMigrationMessage(message)) return
       if (this.handleNotificationSettingsMessage(message)) return
+      // Keep the account actions out of the switch: six case labels there would push
+      // the dispatcher past the complexity limit.
+      if (ACCOUNT_ACTIONS[message.type] !== undefined) {
+        await this.handleProviderAction(message)
+        return
+      }
+
       switch (message.type) {
         case "requestWorkspaceScope":
           this.sendWorkspaceScope()
@@ -2889,14 +2903,15 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
           return
         }
         try {
-          const { response, authMethods, authStates, storedKeys, organizationId, ready, unavailable } =
-            await fetchProviderData(client, this.getWorkspaceDirectory())
+          const { response, authMethods, authStates, organizationId, ready, unavailable } = await fetchProviderData(
+            client,
+            this.getWorkspaceDirectory(),
+          )
           if (generation !== this.providersGeneration || client !== this.client) {
             if (!this.providersQueued) return
             generation = this.providersGeneration
             continue
           }
-          this.storedProviderKeys = storedKeys
           const settings = vscode.workspace.getConfiguration("kilo-code.new.model")
           const message = {
             type: "providersLoaded",
@@ -2948,7 +2963,18 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     const rid = typeof msg.requestId === "string" ? msg.requestId : ""
     const pid = typeof msg.providerID === "string" ? msg.providerID : ""
     if (!rid || !pid) return
+    const accountAction = ACCOUNT_ACTIONS[msg.type as string]
     if (!this.client) {
+      if (accountAction) {
+        this.postMessage({
+          type: "providerAccountError",
+          requestId: rid,
+          providerID: pid,
+          action: accountAction,
+          message: "Not connected to CLI backend",
+        })
+        return
+      }
       const action =
         msg.type === "disconnectProvider"
           ? "disconnect"
@@ -2984,6 +3010,19 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     const metadata =
       msg.metadata && typeof msg.metadata === "object" ? (msg.metadata as Record<string, unknown>) : undefined
     const inputs = msg.inputs && typeof msg.inputs === "object" ? (msg.inputs as Record<string, string>) : undefined
+    const accounts = Array.isArray(msg.accounts) ? msg.accounts : undefined
+    const active = typeof msg.active === "string" ? msg.active : undefined
+    const strategy = typeof msg.strategy === "string" ? msg.strategy : undefined
+    const accountID = typeof msg.accountID === "string" ? msg.accountID : ""
+    if (msg.type === "listProviderAccounts") return listProviderAccountsAction(ctx, rid, pid)
+    if (msg.type === "saveProviderAccounts")
+      return saveProviderAccountsAction(ctx, rid, pid, accounts, active, strategy)
+    if (msg.type === "activateProviderAccount" && accountID)
+      return activateProviderAccountAction(ctx, rid, pid, accountID)
+    if (msg.type === "removeProviderAccount" && accountID) return removeProviderAccountAction(ctx, rid, pid, accountID)
+    if (msg.type === "setProviderAccountStrategy" && strategy)
+      return setProviderAccountStrategyAction(ctx, rid, pid, strategy)
+    if (msg.type === "verifyProviderAccount" && accountID) return verifyProviderAccountAction(ctx, rid, pid, accountID)
     if (msg.type === "connectProvider" && key) return connectProviderAction(ctx, rid, pid, key, metadata)
     if (msg.type === "authorizeProviderOAuth") return authorizeOAuthAction(ctx, rid, pid, method, inputs)
     if (msg.type === "completeProviderOAuth") return completeOAuthAction(ctx, rid, pid, method, code)
@@ -2996,9 +3035,25 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     const rid = typeof msg.requestId === "string" ? msg.requestId : ""
     const url = typeof msg.baseURL === "string" ? msg.baseURL : ""
     if (!rid || !url) return
-    const key =
-      typeof msg.apiKey === "string" ? msg.apiKey : resolveStoredKey(this.storedProviderKeys, msg.providerID, url)
     const headers = msg.headers && typeof msg.headers === "object" ? (msg.headers as Record<string, string>) : undefined
+    const key = typeof msg.apiKey === "string" && msg.apiKey ? msg.apiKey : undefined
+    const providerID = typeof msg.providerID === "string" ? msg.providerID : ""
+    // Without a key from the dialog, the backend fetches with the provider's
+    // stored key — the masked key never reaches the webview (#10139).
+    if (!key) {
+      if (providerID && this.client) {
+        const ctx = buildActionContext(
+          this.client,
+          (m) => this.postMessage(m),
+          getErrorMessage,
+          this.getWorkspaceDirectory(),
+          () => this.fetchAndSendProviders(),
+        )
+        return fetchProviderModelsAction(ctx, rid, providerID, url, headers)
+      }
+      this.postMessage({ type: "customProviderModelsFetched", requestId: rid, error: "API key required", auth: true })
+      return
+    }
     try {
       const models = await fetchOpenAIModels({ baseURL: url, apiKey: key, headers })
       this.postMessage({ type: "customProviderModelsFetched", requestId: rid, models })

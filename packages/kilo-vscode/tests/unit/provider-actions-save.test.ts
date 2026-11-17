@@ -3,7 +3,6 @@ import {
   connectProvider,
   disconnectProvider,
   fetchProviderData,
-  resolveStoredKey,
   saveCustomProvider,
 } from "../../src/provider-actions"
 
@@ -752,7 +751,7 @@ describe("fetchProviderData", () => {
     expect(result.authStates).toEqual({})
   })
 
-  it("retains stripped keys for providers with a configured baseURL", async () => {
+  it("strips keys from provider data and keeps options", async () => {
     const client = {
       provider: {
         list: async () => ({
@@ -789,34 +788,10 @@ describe("fetchProviderData", () => {
 
     const result = await fetchProviderData(client, "/tmp")
 
-    expect(result.storedKeys).toEqual({
-      myprovider: { key: "sk-stored", baseURL: "https://example.com/v1" },
-    })
     expect(result.response.all.every((item) => !("key" in (item as Record<string, unknown>)))).toBe(true)
+    expect(result.response.all.find((item) => item.id === "myprovider")?.options).toEqual({
+      baseURL: "https://example.com/v1",
+    })
   })
 })
 
-describe("resolveStoredKey", () => {
-  const storedKeys = {
-    myprovider: { key: "sk-stored", baseURL: "https://example.com/v1" },
-  }
-
-  it("returns the stored key when the fetch URL matches the configured baseURL", () => {
-    expect(resolveStoredKey(storedKeys, "myprovider", "https://example.com/v1")).toBe("sk-stored")
-  })
-
-  it("tolerates trailing-slash differences", () => {
-    expect(resolveStoredKey(storedKeys, "myprovider", "https://example.com/v1/")).toBe("sk-stored")
-  })
-
-  it("refuses to apply the stored key to a different host or path", () => {
-    expect(resolveStoredKey(storedKeys, "myprovider", "https://evil.example.net/v1")).toBeUndefined()
-    expect(resolveStoredKey(storedKeys, "myprovider", "https://example.com/v2")).toBeUndefined()
-  })
-
-  it("returns undefined for unknown or missing provider ids", () => {
-    expect(resolveStoredKey(storedKeys, "other", "https://example.com/v1")).toBeUndefined()
-    expect(resolveStoredKey(storedKeys, undefined, "https://example.com/v1")).toBeUndefined()
-    expect(resolveStoredKey(storedKeys, "", "https://example.com/v1")).toBeUndefined()
-  })
-})

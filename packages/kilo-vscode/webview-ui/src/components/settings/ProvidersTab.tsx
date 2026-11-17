@@ -15,6 +15,7 @@ import { useServer } from "../../context/server"
 import { useVSCode } from "../../context/vscode"
 import type { Provider } from "../../types/messages"
 import CustomProviderDialog from "./CustomProviderDialog"
+import ProviderAccountsDialog from "./ProviderAccountsDialog"
 import ProviderConnectDialog from "./ProviderConnectDialog"
 import ProviderSelectDialog from "./ProviderSelectDialog"
 import {
@@ -312,8 +313,14 @@ const ProvidersTab: Component = () => {
                     <Show
                       when={canChangeProviderKey(item, config().provider?.[item.id], provider.authMethods()[item.id])}
                     >
-                      <Button size="large" variant="ghost" onClick={() => connectProvider(item)}>
-                        {language.t("settings.providers.action.changeApiKey")}
+                      <Button
+                        size="large"
+                        variant="ghost"
+                        onClick={() =>
+                          dialog.show(() => <ProviderAccountsDialog providerID={item.id} name={item.name} />)
+                        }
+                      >
+                        {language.t("settings.providers.action.accounts")}
                       </Button>
                     </Show>
                     <Show when={isCustom(item)}>

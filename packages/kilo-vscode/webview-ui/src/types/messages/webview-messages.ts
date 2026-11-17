@@ -1574,6 +1574,92 @@ export interface RequestRemoteStatusMessage {
   type: "requestRemoteStatus"
 }
 
+/** Switching strategy across a provider's API-key accounts. */
+export type ProviderAccountStrategy = "manual" | "failover" | "roundRobin"
+export type ProviderAccountStatus = "ok" | "invalid" | "cooling"
+export type ProviderAccountAction = "list" | "save" | "activate" | "remove" | "strategy" | "verify"
+
+/** Local token/cost counters of one account, filled by settled steps. */
+interface ProviderAccountUsage {
+  input: number
+  output: number
+  cost: number
+  turns: number
+  updatedAt: number
+}
+
+/** One stored API key of a provider. The key itself never reaches the webview. */
+export interface ProviderAccount {
+  id: string
+  label: string
+  maskedKey: string
+  enabled: boolean
+  status?: ProviderAccountStatus
+  createdAt?: number
+  lastUsedAt?: number
+  cooldownUntil?: number
+  usage?: ProviderAccountUsage
+  quota?: ProviderAccountQuota
+}
+
+/** Rate-limit quota the provider last reported for an account. */
+export interface ProviderAccountQuota {
+  limit?: number
+  remaining?: number
+  resetAt?: number
+}
+
+/** Omitted fields keep the stored value; `key` replaces only that account's key. */
+export interface ProviderAccountInput {
+  id?: string
+  label?: string
+  key?: string
+  enabled?: boolean
+}
+
+export interface ListProviderAccountsMessage {
+  type: "listProviderAccounts"
+  requestId: string
+  providerID: string
+}
+
+export interface SaveProviderAccountsMessage {
+  type: "saveProviderAccounts"
+  requestId: string
+  providerID: string
+  accounts: ProviderAccountInput[]
+  active?: string
+  strategy?: ProviderAccountStrategy
+}
+
+export interface ActivateProviderAccountMessage {
+  type: "activateProviderAccount"
+  requestId: string
+  providerID: string
+  accountID: string
+}
+
+export interface RemoveProviderAccountMessage {
+  type: "removeProviderAccount"
+  requestId: string
+  providerID: string
+  accountID: string
+}
+
+export interface SetProviderAccountStrategyMessage {
+  type: "setProviderAccountStrategy"
+  requestId: string
+  providerID: string
+  strategy: ProviderAccountStrategy
+}
+
+export interface VerifyProviderAccountMessage {
+  type: "verifyProviderAccount"
+  requestId: string
+  providerID: string
+  accountID: string
+}
+
 export interface ConnectProviderMessage {
   type: "connectProvider"
   requestId: string
@@ -1994,6 +2080,12 @@ export type WebviewMessage =
   | RemoveInstalledMarketplaceItemMessage
   | DismissAgentMigrationBannerMessage
   | ConnectProviderMessage
+  | ListProviderAccountsMessage
+  | SaveProviderAccountsMessage
+  | ActivateProviderAccountMessage
+  | RemoveProviderAccountMessage
+  | SetProviderAccountStrategyMessage
+  | VerifyProviderAccountMessage
   | AuthorizeProviderOAuthMessage
   | CompleteProviderOAuthMessage
   | DisconnectProviderMessage

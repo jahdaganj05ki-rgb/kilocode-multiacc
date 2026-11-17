@@ -4,6 +4,7 @@ import type { PRComment, PRReactionContent } from "../../../agent-manager/pr/pr-
 import type { PartBatch, PartRemove, PartUpdate } from "../../../../src/shared/stream-messages"
 import type { MarketplaceItem, MarketplaceInstalledMetadata, MarketplaceRelevanceMetadata } from "../marketplace"
 import type { ConnectionState, ServerInfo, SessionStatus } from "./connection"
+import type { ProviderAccount, ProviderAccountAction, ProviderAccountStrategy } from "./webview-messages"
 import type { FileAttachment, Part } from "./parts"
 import type {
   CloudSessionInfo,
@@ -1590,6 +1591,32 @@ export interface ProviderActionErrorMessage {
   message: string
 }
 
+export interface ProviderAccountsMessage {
+  type: "providerAccounts"
+  requestId: string
+  providerID: string
+  accounts: ProviderAccount[]
+  active?: string
+  strategy: ProviderAccountStrategy
+}
+
+export interface ProviderAccountVerifiedMessage {
+  type: "providerAccountVerified"
+  requestId: string
+  providerID: string
+  accountID?: string
+  status: "ok" | "invalid" | "rateLimited" | "unknown"
+  httpStatus?: number
+}
+
+export interface ProviderAccountErrorMessage {
+  type: "providerAccountError"
+  requestId: string
+  providerID: string
+  action: ProviderAccountAction
+  message: string
+}
+
 export interface CustomProviderModelsFetchedMessage {
   type: "customProviderModelsFetched"
   requestId: string
@@ -2001,6 +2028,9 @@ export type ExtensionMessage =
   | ProviderConnectedMessage
   | ProviderDisconnectedMessage
   | ProviderActionErrorMessage
+  | ProviderAccountsMessage
+  | ProviderAccountVerifiedMessage
+  | ProviderAccountErrorMessage
   | AnacondaDesktopExtensionMessage
   | CustomProviderModelsFetchedMessage
   | RecentsLoadedMessage

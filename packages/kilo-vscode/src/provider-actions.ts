@@ -18,12 +18,6 @@ import { configFeatures, serverFeatures } from "./features"
  */
 type AuthState = "api" | "oauth" | "wellknown"
 
-/** API key retained extension-side for authenticated model fetches (#10139). */
-export interface StoredProviderKey {
-  key: string
-  baseURL: string
-}
-
 function disabledWithout(list: string[] | undefined, id: string) {
   return (list ?? []).filter((item) => item !== id)
 }
@@ -70,19 +64,12 @@ export async function fetchProviderData(client: KiloClient, dir: string) {
     kiloRequest,
   ])
   const authStates: Record<string, AuthState> = {}
-  const storedKeys: Record<string, StoredProviderKey> = {}
   const all = response.all.map((item) => {
     const raw = item as Record<string, unknown>
-    if (typeof raw.id === "string" && typeof raw.key === "string" && raw.key) {
-      authStates[raw.id] = "api"
-      // Retain the key on the extension side so model fetches for an existing
-      // provider can authenticate without the webview ever seeing the secret
-      // (#10139). Only providers with a configured baseURL are retained — the
-      // fetch handler requires a URL match before applying a stored key.
-      const options = record(raw.options) ? raw.options : undefined
-      const baseURL = options && typeof options.baseURL === "string" ? options.baseURL : undefined
-      if (baseURL) storedKeys[raw.id] = { key: raw.key, baseURL }
-    }
+    // Keys are masked at the HTTP boundary, so this only signals an API-key
+    // credential. Model fetches for stored keys go through the backend
+    // (provider.models.fetch), never through a key held by the extension.
+    if (typeof raw.id === "string" && typeof raw.key === "string" && raw.key) authStates[raw.id] = "api"
     if (!("key" in raw)) return item
     const next = { ...raw }
     delete next.key
@@ -109,7 +96,6 @@ export async function fetchProviderData(client: KiloClient, dir: string) {
     },
     authMethods,
     authStates,
-    storedKeys,
     organizationId,
     ready: !!kiloAuth,
     unavailable: catalogUnavailable(response.failed, all, organizationId),
@@ -132,18 +118,6 @@ function catalogUnavailable(
  * configured baseURL, so a stored secret can never be redirected to a
  * different host (e.g. after the user edits the URL field).
  */
-export function resolveStoredKey(
-  storedKeys: Record<string, StoredProviderKey>,
-  providerID: unknown,
-  url: string,
-): string | undefined {
-  if (typeof providerID !== "string" || !providerID) return undefined
-  const stored = storedKeys[providerID]
-  if (!stored) return undefined
-  const normalize = (value: string) => value.trim().replace(/\/+$/, "")
-  return normalize(stored.baseURL) === normalize(url) ? stored.key : undefined
-}
-
 export function buildActionContext(
   client: KiloClient,
   post: (msg: unknown) => void,
@@ -494,5 +468,248 @@ export async function saveCustomProvider(
     ctx.postMessage({ type: "providerConnected", requestId, providerID: id })
   } catch (error) {
     postError(ctx, requestId, providerID, "connect", ctx.getErrorMessage(error) || "Failed to save custom provider")
+  }
+}
+
+type AccountAction = "list" | "save" | "activate" | "remove" | "strategy" | "verify"
+type AccountStrategy = "manual" | "failover" | "roundRobin"
+
+interface AccountInput {
+  id?: string
+  label?: string
+  key?: string
+  enabled?: boolean
+}
+
+interface AccountView {
+  id: string
+  label: string
+  maskedKey: string
+  enabled: boolean
+  status?: "ok" | "invalid" | "cooling"
+  createdAt?: number
+  lastUsedAt?: number
+  cooldownUntil?: number
+  usage?: { input: number; output: number; cost: number; turns: number; updatedAt: number }
+  quota?: { limit?: number; remaining?: number; resetAt?: number }
+}
+
+interface AccountsResult {
+  accounts: AccountView[]
+  active?: string
+  strategy: AccountStrategy
+}
+
+const STRATEGIES: AccountStrategy[] = ["manual", "failover", "roundRobin"]
+
+function postAccountError(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  action: AccountAction,
+  message: string,
+) {
+  ctx.postMessage({ type: "providerAccountError", requestId, providerID, action, message })
+}
+
+/** Validate account edits from the webview: ids and keys only, nothing executable. */
+function cleanAccounts(raw: unknown): AccountInput[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((item): AccountInput[] => {
+    if (!record(item)) return []
+    const input: AccountInput = {}
+    if (typeof item.id === "string" && item.id) input.id = item.id
+    if (typeof item.label === "string") input.label = item.label
+    if (typeof item.key === "string" && item.key) input.key = item.key
+    if (typeof item.enabled === "boolean") input.enabled = item.enabled
+    return input.id || input.key ? [input] : []
+  })
+}
+
+function cleanStrategy(value: unknown): AccountStrategy | undefined {
+  return STRATEGIES.find((item) => item === value)
+}
+
+function toResult(
+  data: { accounts?: unknown; active?: string; strategy?: string } | undefined,
+): AccountsResult | undefined {
+  if (!data) return undefined
+  const accounts = Array.isArray(data.accounts) ? (data.accounts as AccountView[]) : []
+  return { accounts, active: data.active, strategy: cleanStrategy(data.strategy) ?? "manual" }
+}
+
+function postAccounts(ctx: ActionContext, requestId: string, providerID: string, data: AccountsResult | undefined) {
+  if (!data) {
+    postAccountError(ctx, requestId, providerID, "list", "Failed to load provider accounts")
+    return
+  }
+  ctx.postMessage({
+    type: "providerAccounts",
+    requestId,
+    providerID,
+    accounts: data.accounts,
+    active: data.active,
+    strategy: data.strategy,
+  })
+}
+
+/** Run one account request and answer the webview with the returned list. */
+async function ask(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  action: AccountAction,
+  failure: string,
+  run: () => Promise<{ data?: { accounts?: unknown; active?: string; strategy?: string } }>,
+  refresh = false,
+) {
+  try {
+    const { data } = await run()
+    if (refresh) await ctx.fetchAndSendProviders()
+    postAccounts(ctx, requestId, providerID, toResult(data))
+  } catch (error) {
+    postAccountError(ctx, requestId, providerID, action, ctx.getErrorMessage(error) || failure)
+  }
+}
+
+export async function listProviderAccounts(ctx: ActionContext, requestId: string, providerID: string) {
+  if (!providerID) return postAccountError(ctx, requestId, providerID, "list", "Missing provider")
+  await ask(ctx, requestId, providerID, "list", "Failed to load provider accounts", () =>
+    ctx.client.provider.accounts.list({ providerID, directory: ctx.workspaceDir }, { throwOnError: true }),
+  )
+}
+
+export async function saveProviderAccounts(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  raw: unknown,
+  active?: string,
+  strategy?: string,
+) {
+  const list = cleanAccounts(raw)
+  if (list.length === 0) return postAccountError(ctx, requestId, providerID, "save", "Add at least one API key")
+  await ask(
+    ctx,
+    requestId,
+    providerID,
+    "save",
+    "Failed to save provider accounts",
+    () =>
+      ctx.client.provider.accounts.set(
+        {
+          providerID,
+          directory: ctx.workspaceDir,
+          accounts: list,
+          active,
+          strategy: cleanStrategy(strategy),
+        },
+        { throwOnError: true },
+      ),
+    true,
+  )
+}
+
+export async function activateProviderAccount(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  accountID: string,
+) {
+  await ask(ctx, requestId, providerID, "activate", "Failed to activate account", () =>
+    ctx.client.provider.accounts.activate(
+      { providerID, accountID, directory: ctx.workspaceDir },
+      { throwOnError: true },
+    ),
+  )
+}
+
+export async function removeProviderAccount(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  accountID: string,
+) {
+  await ask(
+    ctx,
+    requestId,
+    providerID,
+    "remove",
+    "Failed to remove account",
+    () =>
+      ctx.client.provider.accounts.remove(
+        { providerID, accountID, directory: ctx.workspaceDir },
+        { throwOnError: true },
+      ),
+    true,
+  )
+}
+
+export async function setProviderAccountStrategy(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  value: string,
+) {
+  const strategy = cleanStrategy(value)
+  if (!strategy) return postAccountError(ctx, requestId, providerID, "strategy", "Unknown strategy")
+  await ask(ctx, requestId, providerID, "strategy", "Failed to save strategy", () =>
+    ctx.client.provider.accounts.strategy(
+      { providerID, strategy, directory: ctx.workspaceDir },
+      { throwOnError: true },
+    ),
+  )
+}
+
+export async function verifyProviderAccount(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  accountID: string,
+) {
+  try {
+    const { data } = await ctx.client.provider.accounts.verify(
+      { providerID, accountID, directory: ctx.workspaceDir },
+      { throwOnError: true },
+    )
+    ctx.postMessage({
+      type: "providerAccountVerified",
+      requestId,
+      providerID,
+      accountID,
+      status: data?.status ?? "unknown",
+      httpStatus: data?.httpStatus,
+    })
+  } catch (error) {
+    postAccountError(ctx, requestId, providerID, "verify", ctx.getErrorMessage(error) || "Failed to verify account")
+  }
+}
+
+/**
+ * Fetch a provider's model list with its stored key. The backend only uses the
+ * key for the URL the provider is configured for, so the secret never leaves it.
+ */
+export async function fetchProviderModels(
+  ctx: ActionContext,
+  requestId: string,
+  providerID: string,
+  baseURL: string,
+  headers?: Record<string, string>,
+) {
+  try {
+    const { data } = await ctx.client.provider.models.fetch(
+      { providerID, baseURL, headers, directory: ctx.workspaceDir },
+      { throwOnError: true },
+    )
+    const models = (data?.models ?? []).map((item) => ({ id: item.id, name: item.name ?? item.id }))
+    ctx.postMessage({ type: "customProviderModelsFetched", requestId, models })
+  } catch (error) {
+    const status = (error as { status?: unknown }).status
+    ctx.postMessage({
+      type: "customProviderModelsFetched",
+      requestId,
+      error: ctx.getErrorMessage(error) || "Failed to fetch models",
+      auth: status === 401 || status === 403,
+    })
   }
 }
