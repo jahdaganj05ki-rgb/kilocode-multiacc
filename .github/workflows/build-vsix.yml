@@ -1,0 +1,75 @@
+# kilocode_change - new file
+name: build-vsix
+run-name: Build VS Code extension (VSIX)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "VSIX target platform (default: win32-x64 on Windows runner)"
+        required: false
+        type: string
+        default: ""
+
+concurrency: build-vsix-${{ github.ref }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6 # kilocode_change
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun # kilocode_change
+
+      # Baut die CLI-Binärdatei für die aktuelle Runner-Plattform (bin/kilo.exe +
+      # Tree-Sitter-, Sandbox-, bwrap- und FFmpeg-Ressourcen). Ohne bin/kilo.exe kann
+      # der Kilo Agent in der Extension nicht laufen.
+      - name: Build CLI binary for current platform
+        working-directory: ./packages/kilo-vscode
+        run: bun run prepare:cli-binary
+
+      # Generiert den TypeScript SDK-Client aus den Server-Endpunkten.
+      - name: Build SDK client
+        working-directory: ./packages/kilo-vscode
+        run: bun run prepare:sdk
+
+      # Bundled die Extension production-ready nach dist/ (esbuild).
+      - name: Bundle extension (production)
+        working-directory: ./packages/kilo-vscode
+        run: bun run bundle:production
+
+      # Ermittelt das vsce Target für die Windows-Runner-Plattform.
+      - name: Determine VSIX target
+        shell: pwsh
+        run: |
+          $target = "win32-x64"
+          echo "VSCE_TARGET=$target" >> $env:GITHUB_ENV
+          echo "VSIX_NAME=kilo-vscode-$target" >> $env:GITHUB_ENV
+
+      - name: Install @vscode/vsce
+        run: bun install -g @vscode/vsce # kilocode_change
+
+      # Packt dist/ + bin/ (per .vscodeinclude eingeschlossen) in ein installierbares .vsix.
+      # --no-dependencies: alle Abhängigkeiten sind bereits gebundelt.
+      # --skip-license: LICENSE-Prüfung überspringen.
+      - name: Package .vsix
+        working-directory: ./packages/kilo-vscode
+        env:
+          npm_config_ignore_scripts: "true"
+        run: vsce package --no-dependencies --skip-license --target ${{ env.VSCE_TARGET }} -o ${{ env.VSIX_NAME }}.vsix
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4 # kilocode_change
+        with:
+          name: ${{ env.VSIX_NAME }}
+          path: ./packages/kilo-vscode/${{ env.VSIX_NAME }}.vsix
+          if-no-files-found: error
+          retention-days: 30
